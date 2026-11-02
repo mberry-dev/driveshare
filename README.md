@@ -70,6 +70,15 @@ Security question answers (lowercase): Alice — fluffy / chicago / smith · Bob
 
 To reset the demo data, stop the app, delete `instance/driveshare.db`, and start it again.
 
+## Tests
+
+52 automated tests (pytest) cover the six design patterns and every user flow: login and password recovery, booking rules, approve → pay → review, watchlist alerts, messaging, and bad input. Each test runs against a fresh copy of the demo database.
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
 ## Deploy to Render
 
 The repo includes a `render.yaml` blueprint. In Render, choose **New → Blueprint**, connect this repository, and deploy. Render installs the requirements, starts the app with Gunicorn, and generates a `SECRET_KEY` automatically.
@@ -84,6 +93,8 @@ driveshare/
 ├── database.py         # Schema, connection handling and demo seed data
 ├── requirements.txt    # Flask and Gunicorn
 ├── render.yaml         # Render deployment blueprint
+├── requirements-dev.txt # Test dependencies (pytest)
+├── tests/              # Automated tests
 ├── templates/          # Jinja2 pages (home, search, car detail, dashboard, messages, …)
 ├── static/             # Placeholder image for cars without a photo
 ├── instance/           # SQLite database (created on first run, not committed)
