@@ -46,7 +46,7 @@
         <a href="/cars/{{ car.id }}" style="text-decoration:none; display:block;">
           <div class="card" style="transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--rust)'" onmouseout="this.style.borderColor='var(--border)'">
             {% if car.image_url %}
-              <img class="card-img" src="{{ car.image_url }}" alt="{{ car.make }}" onerror="this.src='https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=600'">
+              <img class="card-img" src="{{ car.image_url }}" alt="{{ car.make }}" onerror="this.onerror=null;this.src='/static/car-placeholder.svg'">
             {% else %}
               <div class="card-img" style="background:var(--border); display:flex; align-items:center; justify-content:center; font-size:2rem;">🚗</div>
             {% endif %}

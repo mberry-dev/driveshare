@@ -1,127 +1,93 @@
-# DriveShare — CIS 476 Term Project
-**Peer-to-Peer Car Rental Platform**  
-Built with Python (Flask) + SQLite + HTML/CSS
+# DriveShare
 
----
+A peer-to-peer car rental platform where owners list their cars and renters search, book, pay, message and review — built with Python (Flask), SQLite and server-rendered HTML/CSS.
 
-## Quick Setup (Do This Once)
+The project's focus is software design: six classic design patterns are implemented and wired into real features rather than shown in isolation.
 
-### 1. Install Python
-Download from https://python.org — choose the latest version.  
-During install, **check the box "Add Python to PATH"**.
+## Features
 
-### 2. Install VS Code
-Download from https://code.visualstudio.com — free editor.
+- **Accounts** with salted password hashing and three-question password recovery
+- **Car listings** created step by step with the Builder pattern, editable by the owner, with an availability window
+- **Search** by city, dates and max price, excluding cars that are already booked for the requested dates
+- **Booking rules:** no past dates, no dates outside the owner's availability window, no overlapping reservations
+- **Owner approval → payment → confirmation** flow with a demo wallet balance
+- **Watchlist alerts** when a watched car drops in price or becomes available again
+- **In-app messaging**, automatic booking messages, and a notifications feed
+- **Reviews** limited to renters with a paid rental, one review per car
+- **Rental history** for both renters and owners
+- **Responsive layout** for desktop, tablet and phone
 
-### 3. Open the project
-- Unzip the project folder
-- Open VS Code → File → Open Folder → select `driveshare/`
+## Design Patterns
 
-### 4. Open the built-in terminal in VS Code
-Press: `` Ctrl + ` `` (backtick key, top-left of keyboard)
+| Pattern | Where (`app.py`) | What it does |
+| --- | --- | --- |
+| **Singleton** | `UserSession` | One session manager handles all login, logout and auth checks |
+| **Observer** | `CarListingSubject`, `WatchlistObserver` | Notifies renters watching a car about price drops, bookings and re-listings |
+| **Mediator** | `DriveShareMediator` | Coordinates the Search, Booking and Message components so they never call each other directly |
+| **Builder** | `ConcreteCarBuilder` | Builds and validates a car listing step by step |
+| **Proxy** | `PaymentProxy` | Validates and audit-logs every payment before delegating to the real payment service |
+| **Chain of Responsibility** | `Question1/2/3Handler` | Password recovery passes through three security-question handlers in order |
 
-### 5. Install Flask (one command)
-```
-pip install flask
-```
+## Demo Accounts
 
-### 6. Run the app
-```
+The database is created and filled with demo data automatically on first run.
 
-cd ~/OneDrive/Documents/driveshare_project/driveshare
+| Name | Email | Password | Role |
+| --- | --- | --- | --- |
+| Alice Owner | alice@demo.com | password123 | Owner |
+| Bob Renter | bob@demo.com | password123 | Renter |
+| Carol Driver | carol@demo.com | password123 | Owner and renter |
 
-python app.py
-```
+Security question answers (lowercase): Alice — fluffy / chicago / smith · Bob — rex / detroit / jones · Carol — whiskers / miami / brown
 
-### 7. Open your browser
-Go to: **http://127.0.0.1:5000**
+## Built With
 
-That's it! The database creates itself automatically on first run.
+- Python 3 and Flask
+- SQLite
+- Jinja2 templates with hand-written CSS
+- Werkzeug password hashing
+- Gunicorn and Render for deployment
 
----
+## Run Locally
 
-### 8. Terminal used
+1. Clone the repo and open the folder:
+   ```bash
+   git clone https://github.com/mberry-dev/driveshare.git
+   cd driveshare
+   ```
+2. Install the dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Start the app:
+   ```bash
+   python app.py
+   ```
+4. Open http://127.0.0.1:5000 in your browser.
 
-I used git bash termianl also known as MINGW64.
+To reset the demo data, stop the app, delete `instance/driveshare.db`, and start it again.
 
-### 9. Command to delete __Pycache__
+## Deploy to Render
 
-rm -rf __pycache__
+The repo includes a `render.yaml` blueprint. In Render, choose **New → Blueprint**, connect this repository, and deploy. Render installs the requirements, starts the app with Gunicorn, and generates a `SECRET_KEY` automatically.
 
-## Demo Accounts (Pre-loaded)
-
-| Name         | Email            | Password    | Role          |
-|--------------|------------------|-------------|---------------|
-| Alice Owner  | alice@demo.com   | password123 | Owner         |
-| Bob Renter   | bob@demo.com     | password123 | Renter        |
-| Carol Driver | carol@demo.com   | password123 | Owner/Renter  |
-
-Security question answers (all lowercase):
-- Alice: fluffy / chicago / smith
-- Bob: rex / detroit / jones
-- Carol: whiskers / miami / brown
-
----
+On Render's free plan the SQLite file is temporary, so the demo resets to clean data whenever the service restarts or wakes from sleep.
 
 ## Project Structure
 
 ```
 driveshare/
-│
-├── app.py              ← Main application + ALL 6 design patterns
-├── database.py         ← Database schema, init, seed data
-├── requirements.txt    ← Flask dependency
-│
-├── templates/          ← HTML pages (Jinja2 templates)
-│   ├── base.html           Base layout + navigation
-│   ├── index.html          Home page
-│   ├── register.html       User registration
-│   ├── login.html          Login page
-│   ├── recover.html        Password recovery step 1
-│   ├── recover_questions.html  Security questions (Chain of Responsibility)
-│   ├── reset_password.html Password reset
-│   ├── dashboard.html      User dashboard
-│   ├── search.html         Car search results
-│   ├── car_detail.html     Individual car page + booking
-│   ├── new_car.html        List a new car (Builder pattern)
-│   ├── edit_car.html       Edit listing (Observer pattern fires here)
-│   ├── messages.html       Messaging inbox
-│   └── history.html        Rental history
-│
-└── instance/
-    └── driveshare.db   ← SQLite database (auto-created on first run)
+├── app.py              # Routes and all six design patterns
+├── database.py         # Schema, connection handling and demo seed data
+├── requirements.txt    # Flask and Gunicorn
+├── render.yaml         # Render deployment blueprint
+├── templates/          # Jinja2 pages (home, search, car detail, dashboard, messages, …)
+├── static/             # Placeholder image for cars without a photo
+├── instance/           # SQLite database (created on first run, not committed)
+├── reports/            # Project reports
+└── presentation/       # Project presentation
 ```
 
----
+## Background
 
-## Design Patterns Implemented
-
-| Pattern                  | Location in app.py         | Purpose                                        |
-|--------------------------|----------------------------|------------------------------------------------|
-| **Singleton**            | `UserSession`              | One session manager for all auth operations    |
-| **Observer**             | `CarListingSubject` / `WatchlistObserver` | Notify renters of price drops / bookings |
-| **Mediator**             | `DriveShareMediator`       | Coordinate Search, Booking, Message components |
-| **Builder**              | `ConcreteCarBuilder`       | Construct car listings step-by-step            |
-| **Proxy**                | `PaymentProxy`             | Validate, log, and delegate payment calls      |
-| **Chain of Responsibility** | `Question1/2/3Handler` | 3-step password recovery verification         |
-
----
-
-## Database Tables
-
-| Table          | Purpose                                      |
-|----------------|----------------------------------------------|
-| users          | Registered users, hashed passwords + answers |
-| cars           | Vehicle listings by owners                   |
-| bookings       | Rental reservations                          |
-| watchlist      | Observer subscriptions (renter → car)        |
-| notifications  | Observer-generated alerts                    |
-| messages       | In-app messaging                             |
-| reviews        | Post-rental ratings + comments               |
-| payment_log    | Proxy audit trail for payments               |
-
----
-
-## Stopping the App
-Press `Ctrl + C` in the terminal.
-# driveshare
+DriveShare began as the term project for CIS 476 (Software Design Patterns) at the University of Michigan-Dearborn and has since been cleaned up for deployment as a portfolio demo.

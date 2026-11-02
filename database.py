@@ -1,6 +1,5 @@
 """
 database.py — DriveShare Database Layer
-CIS 476 Term Project
 
 Uses SQLite (built into Python — no installation needed).
 All tables, schema, and demo seed data are defined here.
@@ -48,15 +47,15 @@ def init_db():
 
     # ── users ────────────────────────────────────────────────────────────────
     # Stores both owners and renters (any user can be either or both).
-    # Passwords and security answers are stored as SHA-256 hashes.
+    # Passwords and security answers are stored as salted hashes.
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id               INTEGER PRIMARY KEY AUTOINCREMENT,
             name             TEXT    NOT NULL,
             email            TEXT    UNIQUE NOT NULL,
-            password         TEXT    NOT NULL,          -- SHA-256 hash
+            password         TEXT    NOT NULL,          -- salted hash (Werkzeug)
             security_q1      TEXT    NOT NULL,          -- question text
-            security_answer1 TEXT    NOT NULL,          -- SHA-256 hash
+            security_answer1 TEXT    NOT NULL,          -- salted hash (Werkzeug)
             security_q2      TEXT    NOT NULL,
             security_answer2 TEXT    NOT NULL,
             security_q3      TEXT    NOT NULL,
@@ -177,10 +176,12 @@ def init_db():
     # ── Seed demo data (only if tables are empty) ─────────────────────────────
     existing = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     if existing == 0:
-        import hashlib
+        from datetime import date, timedelta
+        from werkzeug.security import generate_password_hash as h
 
-        def h(s):
-            return hashlib.sha256(s.encode()).hexdigest()
+        # Demo cars are available from today for one year
+        avail_from = date.today().isoformat()
+        avail_to   = (date.today() + timedelta(days=365)).isoformat()
 
         # Demo users — password is "password123" for all
         users = [
@@ -205,48 +206,48 @@ def init_db():
             users
         )
 
-        # Demo cars — updated names and images per user specifications
+        # Demo cars
         cars = [
             (1, "Ford", "Expedition", 2021, 25000, "Chicago, IL", 65.00,
-             "Clean and reliable sedan. Perfect for city driving and commutes.",
+             "Full-size SUV with three rows of seating. Room for the whole family and their luggage.",
              "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=600",
-             "2026-04-01", "2026-12-31"),
+             avail_from, avail_to),
             (1, "Nissan", "GT-R", 2022, 18000, "Austin, TX", 80.00,
-             "Spacious SUV, great for road trips, families, and adventures.",
+             "Twin-turbo V6 sports car with all-wheel drive. Fast, sharp, and surprisingly practical.",
              "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=600",
-             "2026-04-01", "2026-12-31"),
-            (1, "Volkswagen", "Bugatti", 2020, 30000, "Miami, FL", 110.00,
-             "Bold muscle car with a roaring V8 — turn heads everywhere you go.",
+             avail_from, avail_to),
+            (1, "Bugatti", "Chiron", 2020, 30000, "Miami, FL", 110.00,
+             "Quad-turbo W16 hypercar. A once-in-a-lifetime drive down Ocean Drive.",
              "https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=600",
-             "2026-04-01", "2026-12-31"),
+             avail_from, avail_to),
             (3, "Tesla", "Model 3", 2023, 8000, "Seattle, WA", 120.00,
              "All-electric, autopilot-capable. Charging cable included.",
              "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=600",
-             "2026-04-01", "2026-12-31"),
-            (3, "Chevrolet", "Dodge Challenger", 2021, 22000, "New York, NY", 145.00,
-             "Convertible sports car — thrilling open-air driving experience.",
+             avail_from, avail_to),
+            (3, "Dodge", "Challenger", 2021, 22000, "New York, NY", 145.00,
+             "Classic American muscle car with a roaring V8. Turn heads everywhere you go.",
              "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=600",
-             "2026-04-01", "2026-12-31"),
+             avail_from, avail_to),
             (1, "Jeep", "Wrangler", 2021, 35000, "Denver, CO", 95.00,
              "Off-road ready 4x4. Perfect for mountain trails and outdoor adventures.",
              "https://media.ed.edmunds-media.com/jeep/wrangler/2025/oem/2025_jeep_wrangler_convertible-suv_rubicon-x_fq_oem_1_1600.jpg",
-             "2026-04-01", "2026-12-31"),
+             avail_from, avail_to),
             (3, "Chevrolet", "Camaro", 2022, 15000, "Las Vegas, NV", 115.00,
              "Iconic American muscle. Make your Vegas trip unforgettable.",
              "https://hips.hearstapps.com/hmg-prod/images/2024-chevrolet-camaro-ss-collectors-edition-1-647e1933c6c20.jpg?crop=0.755xw:0.696xh;0.112xw,0.149xh&resize=1200:*",
-             "2026-04-01", "2026-12-31"),
+             avail_from, avail_to),
             (1, "Ford", "F-150", 2022, 20000, "Dallas, TX", 85.00,
              "Full-size pickup truck. Great for hauling, moving, or road trips.",
              "https://www.ford-trucks.com/wp-content/uploads/2022/06/287606071_612198863806674_1489387876267703910_n.jpeg",
-             "2026-04-01", "2026-12-31"),
+             avail_from, avail_to),
             (3, "BMW", "X5", 2023, 12000, "Boston, MA", 130.00,
              "Luxury SUV with premium interior and smooth highway ride.",
              "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=600",
-             "2026-04-01", "2026-12-31"),
+             avail_from, avail_to),
             (1, "Toyota", "Camry", 2020, 40000, "Phoenix, AZ", 55.00,
              "Affordable, fuel-efficient mid-size sedan. Great value for daily trips.",
              "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=600",
-             "2026-04-01", "2026-12-31"),
+             avail_from, avail_to),
         ]
         conn.executemany(
             """INSERT INTO cars
