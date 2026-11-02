@@ -10,7 +10,7 @@
       {% if car.image_url %}
       <img src="{{ car.image_url }}" alt="{{ car.make }}"
            style="width:100%; border-radius:12px; max-height:380px; object-fit:cover; margin-bottom:1.5rem;"
-           onerror="this.src='https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=600'">
+           onerror="this.onerror=null;this.src='/static/car-placeholder.svg'">
       {% endif %}
 
       <h1 class="page-title">{{ car.year }} {{ car.make }} {{ car.model }}</h1>

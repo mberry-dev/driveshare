@@ -1,9 +1,7 @@
 """
 DriveShare - Peer-to-Peer Car Rental Platform
-CIS 476 Term Project
 
-Author: [Your Name]
-Date: Spring 2026
+Author: Michael Berry
 
 Design patterns implemented:
   - Singleton              : UserSession (secure session management)
@@ -26,16 +24,21 @@ FIXES v2:
 """
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash
+from werkzeug.security import generate_password_hash, check_password_hash
 from database import init_db, get_db
 import hashlib, os
-from datetime import datetime
+from datetime import datetime, date
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Flask App Setup
 # ─────────────────────────────────────────────────────────────────────────────
 app = Flask(__name__)
-# Fixed key — sessions persist across server restarts (os.urandom resets on restart)
-app.secret_key = 'driveshare-cis476-secret-key-2026'
+# Secret key comes from the environment in production (Render sets SECRET_KEY).
+# The fallback is for local development only.
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-only-change-me')
+
+# Create tables and demo data on startup (works under both `python app.py` and gunicorn)
+init_db()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -562,8 +565,8 @@ class SecurityQuestionHandler:
 class Question1Handler(SecurityQuestionHandler):
     """Handler 1 — validates security answer 1."""
     def handle(self, user, answers):
-        given = hash_password(answers.get('answer1', '').strip().lower())
-        if given != user['security_answer1']:
+        given = answers.get('answer1', '').strip().lower()
+        if not verify_secret(user['security_answer1'], given):
             return {'success': False,
                     'message': 'Security question 1 answer is incorrect.'}
         return super().handle(user, answers)
@@ -572,8 +575,8 @@ class Question1Handler(SecurityQuestionHandler):
 class Question2Handler(SecurityQuestionHandler):
     """Handler 2 — validates security answer 2."""
     def handle(self, user, answers):
-        given = hash_password(answers.get('answer2', '').strip().lower())
-        if given != user['security_answer2']:
+        given = answers.get('answer2', '').strip().lower()
+        if not verify_secret(user['security_answer2'], given):
             return {'success': False,
                     'message': 'Security question 2 answer is incorrect.'}
         return super().handle(user, answers)
@@ -582,8 +585,8 @@ class Question2Handler(SecurityQuestionHandler):
 class Question3Handler(SecurityQuestionHandler):
     """Handler 3 — validates security answer 3 (final link in chain)."""
     def handle(self, user, answers):
-        given = hash_password(answers.get('answer3', '').strip().lower())
-        if given != user['security_answer3']:
+        given = answers.get('answer3', '').strip().lower()
+        if not verify_secret(user['security_answer3'], given):
             return {'success': False,
                     'message': 'Security question 3 answer is incorrect.'}
         return super().handle(user, answers)
@@ -600,8 +603,28 @@ def build_recovery_chain():
 # Utilities
 # ─────────────────────────────────────────────────────────────────────────────
 def hash_password(text):
-    """SHA-256 hash used for passwords and security answers."""
-    return hashlib.sha256(text.encode()).hexdigest()
+    """Salted hash (PBKDF2 via Werkzeug) used for passwords and security answers."""
+    return generate_password_hash(text)
+
+
+def verify_secret(stored_hash, given):
+    """
+    Check a password or security answer against its stored hash.
+    Also accepts legacy unsalted SHA-256 hashes from older databases.
+    """
+    if not stored_hash:
+        return False
+    if stored_hash.startswith(('pbkdf2:', 'scrypt:')):
+        return check_password_hash(stored_hash, given)
+    return stored_hash == hashlib.sha256(given.encode()).hexdigest()
+
+
+def parse_date(value):
+    """Parse a YYYY-MM-DD string into a date, or return None if invalid."""
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return None
 
 
 def login_required(f):
@@ -633,7 +656,12 @@ def index():
         "ORDER BY c.id DESC LIMIT 8",
         (owner_id,)
     ).fetchall()
-    return render_template('index.html', cars=cars, user=user)
+    stats = db.execute(
+        "SELECT COUNT(*) AS cars, COUNT(DISTINCT location) AS cities, "
+        "COUNT(DISTINCT owner_id) AS owners, MIN(price_per_day) AS min_price "
+        "FROM cars WHERE is_available=1"
+    ).fetchone()
+    return render_template('index.html', cars=cars, user=user, stats=stats)
 
 
 # ── Authentication ─────────────────────────────────────────────────────────
@@ -674,11 +702,16 @@ def login():
     if request.method == 'POST':
         db    = get_db()
         email = request.form['email'].strip().lower()
+        password = request.form['password']
         user  = db.execute(
-            "SELECT * FROM users WHERE email=? AND password=?",
-            (email, hash_password(request.form['password']))
+            "SELECT * FROM users WHERE email=?", (email,)
         ).fetchone()
-        if user:
+        if user and verify_secret(user['password'], password):
+            # Upgrade a legacy unsalted hash to the salted format on login
+            if not user['password'].startswith(('pbkdf2:', 'scrypt:')):
+                db.execute("UPDATE users SET password=? WHERE id=?",
+                           (hash_password(password), user['id']))
+                db.commit()
             UserSession.get_instance().login(dict(user))
             flash(f'Welcome back, {user["name"]}!', 'success')
             return redirect(url_for('dashboard'))
@@ -851,7 +884,13 @@ def edit_car(car_id):
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
-        new_price  = float(request.form['price_per_day'])
+        try:
+            new_price = float(request.form['price_per_day'])
+            if new_price <= 0:
+                raise ValueError
+        except (KeyError, ValueError):
+            flash('Please enter a valid price per day.', 'danger')
+            return redirect(url_for('edit_car', car_id=car_id))
         old_price  = float(car['price_per_day'])
         new_status = int(request.form.get('is_available', 1))
         old_status = int(car['is_available'])
@@ -975,22 +1014,30 @@ def book_car(car_id):
         flash('You cannot rent your own car.', 'danger')
         return redirect(url_for('car_detail', car_id=car_id))
 
-    start_date = request.form['start_date']
-    end_date   = request.form['end_date']
+    start_date = request.form.get('start_date', '')
+    end_date   = request.form.get('end_date', '')
+    d1, d2     = parse_date(start_date), parse_date(end_date)
+    back       = redirect(url_for('car_detail', car_id=car_id,
+                                  start_date=start_date, end_date=end_date))
 
-    try:
-        d1   = datetime.strptime(start_date, '%Y-%m-%d')
-        d2   = datetime.strptime(end_date,   '%Y-%m-%d')
-        days = (d2 - d1).days
-    except ValueError:
+    if not d1 or not d2:
         flash('Invalid date format.', 'danger')
-        return redirect(url_for('car_detail', car_id=car_id,
-                                start_date=start_date, end_date=end_date))
-
+        return back
+    days = (d2 - d1).days
     if days <= 0:
         flash('Return date must be after pick-up date.', 'danger')
-        return redirect(url_for('car_detail', car_id=car_id,
-                                start_date=start_date, end_date=end_date))
+        return back
+    if d1 < date.today():
+        flash('Pick-up date cannot be in the past.', 'danger')
+        return back
+    if not car['is_available']:
+        flash('This car is not currently listed for rental.', 'danger')
+        return back
+    avail_start, avail_end = parse_date(car['avail_start']), parse_date(car['avail_end'])
+    if (avail_start and d1 < avail_start) or (avail_end and d2 > avail_end):
+        flash(f"This car is only available from {car['avail_start'] or 'now'} "
+              f"to {car['avail_end'] or 'open-ended'}.", 'danger')
+        return back
 
     mediator = DriveShareMediator()
     if not mediator.booking.is_car_available(car_id, start_date, end_date):
@@ -1046,6 +1093,13 @@ def cancel_booking(booking_id):
 def toggle_watch(car_id):
     user = UserSession.get_instance().get_current_user()
     db   = get_db()
+    car  = db.execute("SELECT id, owner_id FROM cars WHERE id=?", (car_id,)).fetchone()
+    if not car:
+        flash('Car not found.', 'danger')
+        return redirect(url_for('index'))
+    if car['owner_id'] == user['id']:
+        flash('You cannot watch your own car.', 'danger')
+        return redirect(url_for('car_detail', car_id=car_id))
     existing = db.execute(
         "SELECT 1 FROM watchlist WHERE car_id=? AND renter_id=?",
         (car_id, user['id'])
@@ -1056,7 +1110,10 @@ def toggle_watch(car_id):
                    (car_id, user['id']))
         flash('Removed from watchlist.', 'info')
     else:
-        mp = request.form.get('max_price') or None
+        try:
+            mp = float(request.form['max_price']) if request.form.get('max_price') else None
+        except ValueError:
+            mp = None
         db.execute(
             "INSERT INTO watchlist (car_id, renter_id, max_price) VALUES (?,?,?)",
             (car_id, user['id'], mp)
@@ -1095,10 +1152,14 @@ def approve_booking(booking_id):
     db      = get_db()
     user    = UserSession.get_instance().get_current_user()
     booking = db.execute("SELECT * FROM bookings WHERE id=?", (booking_id,)).fetchone()
-    car     = db.execute("SELECT * FROM cars WHERE id=?", (booking['car_id'],)).fetchone()
+    car     = db.execute("SELECT * FROM cars WHERE id=?",
+                         (booking['car_id'],)).fetchone() if booking else None
 
-    if car['owner_id'] != user['id']:
-        flash('Unauthorized.', 'danger')
+    if not booking or not car or car['owner_id'] != user['id']:
+        flash('Booking not found.', 'danger')
+        return redirect(url_for('dashboard'))
+    if booking['status'] != 'pending':
+        flash('Only pending bookings can be approved.', 'danger')
         return redirect(url_for('dashboard'))
 
     db.execute("UPDATE bookings SET status='approved' WHERE id=?", (booking_id,))
@@ -1208,10 +1269,20 @@ def add_review(car_id):
     if not booking:
         flash('You can only review cars you have a confirmed (paid) rental for.', 'danger')
         return redirect(url_for('car_detail', car_id=car_id))
+    if db.execute("SELECT 1 FROM reviews WHERE car_id=? AND reviewer_id=?",
+                  (car_id, user['id'])).fetchone():
+        flash('You have already reviewed this car.', 'danger')
+        return redirect(url_for('car_detail', car_id=car_id))
+    try:
+        rating = int(request.form.get('rating', ''))
+    except ValueError:
+        rating = 0
+    if not 1 <= rating <= 5:
+        flash('Rating must be between 1 and 5.', 'danger')
+        return redirect(url_for('car_detail', car_id=car_id))
     db.execute(
         "INSERT INTO reviews (car_id, reviewer_id, rating, comment) VALUES (?,?,?,?)",
-        (car_id, user['id'],
-         int(request.form['rating']),
+        (car_id, user['id'], rating,
          request.form.get('comment', '').strip())
     )
     db.commit()
@@ -1254,5 +1325,5 @@ def rental_history():
 # Entry Point
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
-    init_db()
-    app.run(debug=True)
+    # Debug mode only when explicitly enabled: FLASK_DEBUG=1 python app.py
+    app.run(debug=os.environ.get('FLASK_DEBUG') == '1')
