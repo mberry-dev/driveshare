@@ -4,6 +4,9 @@ A peer-to-peer car rental platform where owners list their cars and renters sear
 
 The project's focus is software design: six classic design patterns are implemented and wired into real features rather than shown in isolation.
 
+**Live demo:** https://driveshare-4m5e.onrender.com
+Log in with `bob@demo.com` / `password123` (more demo accounts below). It's on Render's free plan, so the first visit can take up to a minute while the server wakes up, and the demo data resets whenever it restarts.
+
 ## Features
 
 - **Accounts** with salted password hashing and three-question password recovery
