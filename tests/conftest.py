@@ -17,9 +17,9 @@ import app as app_module  # noqa: E402  (imports after DATABASE is redirected)
 
 
 @pytest.fixture
-def app():
-    if os.path.exists(database.DATABASE):
-        os.remove(database.DATABASE)
+def app(tmp_path):
+    # A separate database file per test: Windows can't delete a file that is still open
+    database.DATABASE = str(tmp_path / 'test.db')
     database.init_db()
     app_module.app.config.update(TESTING=True)
     yield app_module.app
