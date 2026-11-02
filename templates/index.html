@@ -50,6 +50,10 @@
 
   /* ── Stats strip ── */
   .stats { display: flex; gap: 3rem; padding: 1.5rem 2rem; border-bottom: 1px solid var(--border); }
+  @media (max-width: 600px) {
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+    .search-bar .sep { display: none; }
+  }
   .stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--rust); }
   .stat-lbl { font-size: 0.78rem; color: var(--gray); text-transform: uppercase; letter-spacing: 0.08em; }
 
@@ -93,10 +97,10 @@
 
 <!-- Stats -->
 <div class="stats container">
-  <div><div class="stat-val">500+</div><div class="stat-lbl">Cars Available</div></div>
-  <div><div class="stat-val">12K+</div><div class="stat-lbl">Happy Renters</div></div>
-  <div><div class="stat-val">4.8★</div><div class="stat-lbl">Avg. Rating</div></div>
-  <div><div class="stat-val">48hr</div><div class="stat-lbl">Avg. Booking Time</div></div>
+  <div><div class="stat-val">{{ stats.cars }}</div><div class="stat-lbl">Cars Listed</div></div>
+  <div><div class="stat-val">{{ stats.cities }}</div><div class="stat-lbl">Cities</div></div>
+  <div><div class="stat-val">{{ stats.owners }}</div><div class="stat-lbl">Owners</div></div>
+  {% if stats.min_price %}<div><div class="stat-val">${{ "%.0f"|format(stats.min_price) }}</div><div class="stat-lbl">Cars From / Day</div></div>{% endif %}
 </div>
 
 <!-- Featured Cars -->
@@ -104,7 +108,7 @@
   <div class="container">
     <div class="section-header">
       <h2 class="section-label">Featured Cars</h2>
-      <a href="/search?location=&start_date=2026-04-01&end_date=2026-04-02" class="btn btn-outline btn-sm">View All →</a>
+      <a href="/search?show_all=1" class="btn btn-outline btn-sm">View All →</a>
     </div>
 
     {% if cars %}
@@ -114,7 +118,7 @@
         <div class="card">
           {% if car.image_url %}
             <img class="card-img" src="{{ car.image_url }}" alt="{{ car.make }} {{ car.model }}"
-                 onerror="this.src='https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=600'">
+                 onerror="this.onerror=null;this.src='/static/car-placeholder.svg'">
           {% else %}
             <div class="card-img" style="background:var(--border); display:flex; align-items:center; justify-content:center; color:var(--gray);">🚗</div>
           {% endif %}
